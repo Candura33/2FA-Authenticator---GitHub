@@ -1,0 +1,16 @@
+GitHub Authenticator
+About the Authenticator:
+This is a TOTP (Time-based One-Time Password) authenticator for GitHub. It generates temporary 6-digit codes that change every 30 seconds, providing an extra layer of security for your account.
+
+Why use it?
+When you enable two-factor authentication (2FA) on GitHub, in addition to your regular password, you need to provide a temporary code to prove that you are really you. This authenticator generates these codes directly in your browser, without the need to install external applications like Authy or Google Authenticator.
+
+When setting up 2FA on GitHub:
+
+1. GitHub will display a secret code or a full TOTP URL
+
+2. Paste any of the formats below (the program detects it automatically):
+
+Direct code: XXXXXXXXXXXXXXXX (code provided by GitHub)
+Full URL: otpauth://totp/GitHub:username?secret=XXXXXXXXXXXXXXXX&issuer=GitHub
+3. Click "Set up" and the authenticator will generate the codes for login

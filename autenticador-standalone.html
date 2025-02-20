@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Autenticador GitHub</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/otpauth/9.1.4/otpauth.umd.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+            text-align: center;
+            background-color: #f6f8fa;
+        }
+        .container {
+            margin: 20px;
+            padding: 20px;
+            border: 1px solid #e1e4e8;
+            border-radius: 6px;
+            background-color: white;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.12);
+        }
+        input {
+            padding: 10px;
+            margin: 10px;
+            width: 300px;
+            border: 1px solid #e1e4e8;
+            border-radius: 6px;
+            font-family: monospace;
+        }
+        button {
+            padding: 10px 20px;
+            background-color: #2ea44f;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: bold;
+            margin: 10px;
+        }
+        button:hover {
+            background-color: #2c974b;
+        }
+        #codigo {
+            font-size: 32px;
+            font-family: monospace;
+            color: #24292e;
+            margin: 20px;
+            letter-spacing: 4px;
+        }
+        #tempo {
+            width: 100%;
+            height: 4px;
+            background-color: #e1e4e8;
+            margin-top: 20px;
+        }
+        #barra {
+            height: 100%;
+            background-color: #2ea44f;
+            width: 100%;
+            transition: width 1s linear;
+        }
+        .instrucoes {
+            text-align: left;
+            margin: 20px;
+            padding: 15px;
+            background-color: #f8f9fa;
+            border-radius: 6px;
+            border-left: 4px solid #2ea44f;
+        }
+        .offline-badge {
+            position: fixed;
+            top: 10px;
+            right: 10px;
+            padding: 8px 12px;
+            background: #2ea44f;
+            color: white;
+            border-radius: 6px;
+            font-size: 14px;
+        }
+        .salvar-info {
+            margin-top: 20px;
+            padding: 10px;
+            background-color: #fff3cd;
+            border: 1px solid #ffeeba;
+            border-radius: 6px;
+            display: none;
+        }
+        .codigo-container {
+            background: #f6f8fa;
+            padding: 20px;
+            border-radius: 6px;
+            margin: 20px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="offline-badge">✓ Funciona Offline</div>
+    <h1>Autenticador GitHub</h1>
+    
+    <div class="container">
+        <div class="instrucoes">
+            <h3>Sobre o Autenticador:</h3>
+            <p>Este é um autenticador TOTP (Time-based One-Time Password) para o GitHub. Ele gera códigos temporários de 6 dígitos que mudam a cada 30 segundos, fornecendo uma camada extra de segurança para sua conta.</p>
+            
+            <h3>Por que usar?</h3>
+            <p>Quando você ativa a autenticação de duas etapas (2FA) no GitHub, além da sua senha normal, você precisa fornecer um código temporário para provar que é realmente você. Este autenticador gera esses códigos diretamente no seu navegador, sem necessidade de instalar aplicativos externos como Authy ou Google Authenticator.</p>
+            
+            <h3>Durante a configuração do 2FA no GitHub:</h3>
+            <p>1. O GitHub vai mostrar um código secreto ou uma URL completa do TOTP</p>
+            <p>2. Cole qualquer um dos formatos abaixo (o programa detecta automaticamente):</p>
+            <ul style="text-align: left; margin: 10px 0;">
+                <li>Código direto: <code>XXXXXXXXXXXXXXXX</code> (código fornecido pelo GitHub)</li>
+                <li>URL completa: <code>otpauth://totp/GitHub:usuario?secret=XXXXXXXXXXXXXXXX&issuer=GitHub</code></li>
+            </ul>
+            <p>3. Clique em "Configurar" e o autenticador vai gerar os códigos para login</p>
+        </div>
+
+        <div class="input-container" style="margin: 30px 0; background: #f8f9fa; padding: 20px; border-radius: 6px;">
+            <input type="text" id="secreto" placeholder="Cole aqui o código secreto ou URL completa do GitHub" style="font-size: 16px; width: 90%;">
+            <button onclick="configurar()" class="botao-principal">Configurar</button>
+        </div>
+
+        <style>
+            .botao-principal {
+                display: block;
+                margin: 20px auto;
+                font-size: 18px;
+                padding: 15px 40px;
+                background-color: #2ea44f;
+                color: white;
+                border: none;
+                border-radius: 6px;
+                cursor: pointer;
+                font-weight: bold;
+                transition: all 0.2s ease;
+                box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            }
+            .botao-principal:hover {
+                background-color: #2c974b;
+                transform: translateY(-2px);
+                box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+            }
+            .input-container input {
+                width: 80%;
+                max-width: 400px;
+            }
+        </style>
+
+        <div id="gerador" style="display: none;">
+            <h2>Seu código:</h2>
+            <div class="codigo-container">
+                <div id="codigo">000000</div>
+                <div id="tempo"><div id="barra"></div></div>
+            </div>
+            <button onclick="copiarCodigo()">Copiar Código</button>
+            <div class="salvar-info" id="salvar-info">
+                ✓ Chave secreta salva! Este autenticador continuará funcionando mesmo offline.
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let totp;
+        let intervaloAtualizacao;
+        
+        // Inicializar quando a página carregar
+        window.onload = function() {
+            // Limpar qualquer chave anterior
+            localStorage.removeItem('github_2fa_key');
+            document.getElementById('secreto').value = '';
+        };
+        
+        function extrairSegredo(input) {
+            // Tentar extrair o segredo de uma URL TOTP
+            try {
+                if (input.startsWith('otpauth://')) {
+                    const url = new URL(input);
+                    const params = new URLSearchParams(url.search);
+                    return params.get('secret');
+                }
+            } catch (error) {
+                // Se falhar ao parsear a URL, retorna o input original
+                console.log('Não é uma URL TOTP válida, usando como código direto');
+            }
+            // Se não for uma URL, retorna o input original limpo
+            return input.replace(/\s+/g, '');
+        }
+
+        function configurar() {
+            const input = document.getElementById('secreto').value.trim();
+            
+            if (!input) {
+                alert('Por favor, insira a chave secreta do GitHub ou a URL completa');
+                return;
+            }
+
+            try {
+                // Extrair o segredo da entrada
+                const segredo = extrairSegredo(input);
+                
+                if (!segredo) {
+                    throw new Error('Segredo não encontrado');
+                }
+
+                // Criar nova instância TOTP
+                totp = new OTPAuth.TOTP({
+                    issuer: 'GitHub',
+                    label: 'GitHub 2FA',
+                    algorithm: 'SHA1',
+                    digits: 6,
+                    period: 30,
+                    secret: OTPAuth.Secret.fromBase32(segredo)
+                });
+
+                // Salvar chave localmente
+                localStorage.setItem('github_2fa_key', segredo);
+                document.getElementById('salvar-info').style.display = 'block';
+
+                // Mostrar o gerador
+                document.getElementById('gerador').style.display = 'block';
+                
+                // Iniciar a geração de códigos
+                gerarCodigo();
+                
+                // Atualizar a cada segundo
+                if (intervaloAtualizacao) {
+                    clearInterval(intervaloAtualizacao);
+                }
+                intervaloAtualizacao = setInterval(atualizarTempo, 1000);
+                
+            } catch (error) {
+                alert('Chave secreta inválida. Verifique se você copiou corretamente.');
+            }
+        }
+
+        function gerarCodigo() {
+            if (!totp) return;
+            
+            // Gerar novo código
+            const codigo = totp.generate();
+            document.getElementById('codigo').textContent = codigo;
+            
+            // Resetar a barra de tempo
+            const barra = document.getElementById('barra');
+            barra.style.width = '100%';
+        }
+
+        function atualizarTempo() {
+            const agora = Math.floor(Date.now() / 1000);
+            const tempoRestante = 30 - (agora % 30);
+            
+            // Atualizar a barra de progresso
+            const barra = document.getElementById('barra');
+            barra.style.width = (tempoRestante / 30 * 100) + '%';
+            
+            // Gerar novo código quando o tempo zerar
+            if (tempoRestante === 30) {
+                gerarCodigo();
+            }
+        }
+
+        function copiarCodigo() {
+            const codigo = document.getElementById('codigo').textContent;
+            navigator.clipboard.writeText(codigo).then(() => {
+                const botao = document.querySelector('#gerador button');
+                botao.textContent = 'Copiado!';
+                setTimeout(() => {
+                    botao.textContent = 'Copiar Código';
+                }, 2000);
+            });
+        }
+    </script>
+</body>
+</html>
